@@ -25,14 +25,14 @@ async def gpt_proxy(req: Request):
         if not OPENAI_API_KEY:
             return {
                 "response": {
-                    "text": "Ошибка: API-ключ не найден. Проверь настройки окружения.",
+                    "text": "Ошибка: API-ключ не задан. Проверь Render → Environment.",
                     "end_session": False
                 },
                 "version": "1.0"
             }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
+            api_response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {OPENAI_API_KEY}",
@@ -44,14 +44,21 @@ async def gpt_proxy(req: Request):
                     "temperature": 0.7
                 }
             )
-            result = response.json()
-            reply = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
 
-            if not reply:
-                reply = "Ответ от GPT пустой или некорректный."
+        result = api_response.json()
+
+        reply = (
+            result.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+
+        if not reply:
+            reply = "Ответ от GPT пустой или некорректный. Проверь prompt."
 
     except Exception as e:
-        reply = f"Ошибка при обработке запроса: {str(e)}"
+        reply = f"Ошибка обработки запроса: {str(e)}"
 
     return {
         "response": {
