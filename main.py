@@ -5,7 +5,7 @@ import os
 app = FastAPI()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = "gpt-3.5-turbo"  # конкретно запрошенная модель
+OPENAI_MODEL = "gpt-3.5-turbo"
 
 @app.post("/gpt")
 async def gpt_proxy(req: Request):
@@ -17,6 +17,15 @@ async def gpt_proxy(req: Request):
             return {
                 "response": {
                     "text": "Запрос не распознан. Пожалуйста, повторите.",
+                    "end_session": False
+                },
+                "version": "1.0"
+            }
+
+        if not OPENAI_API_KEY:
+            return {
+                "response": {
+                    "text": "Ошибка: API-ключ не найден. Проверь настройки окружения.",
                     "end_session": False
                 },
                 "version": "1.0"
@@ -36,21 +45,17 @@ async def gpt_proxy(req: Request):
                 }
             )
             result = response.json()
+            reply = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
 
-            # Проверка на ошибки от OpenAI
-            if "choices" in result:
-                reply = result["choices"][0]["message"]["content"]
-            elif "error" in result:
-                reply = f"OpenAI error: {result['error'].get('message', 'Неизвестная ошибка')}"
-            else:
-                reply = f"Непредвиденный ответ: {result}"
+            if not reply:
+                reply = "Ответ от GPT пустой или некорректный."
 
     except Exception as e:
-        reply = f"Ошибка обращения к GPT: {str(e)}"
+        reply = f"Ошибка при обработке запроса: {str(e)}"
 
     return {
         "response": {
-            "text": reply.strip(),
+            "text": reply,
             "end_session": False
         },
         "version": "1.0"
