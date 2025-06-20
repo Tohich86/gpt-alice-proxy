@@ -5,23 +5,23 @@ import os
 app = FastAPI()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = "gpt-4"  # или gpt-3.5-turbo, если хочешь быстрее и дешевле
+OPENAI_MODEL = "gpt-3.5-turbo"  # конкретно запрошенная модель
 
 @app.post("/gpt")
 async def gpt_proxy(req: Request):
-    data = await req.json()
-    prompt = data.get("request", {}).get("original_utterance", "")
-
-    if not prompt:
-        return {
-            "response": {
-                "text": "Запрос не распознан. Пожалуйста, повторите.",
-                "end_session": False
-            },
-            "version": "1.0"
-        }
-
     try:
+        data = await req.json()
+        prompt = data.get("request", {}).get("original_utterance", "").strip()
+
+        if not prompt:
+            return {
+                "response": {
+                    "text": "Запрос не распознан. Пожалуйста, повторите.",
+                    "end_session": False
+                },
+                "version": "1.0"
+            }
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -36,10 +36,17 @@ async def gpt_proxy(req: Request):
                 }
             )
             result = response.json()
-            reply = result["choices"][0]["message"]["content"]
+
+            # Проверка на ошибки от OpenAI
+            if "choices" in result:
+                reply = result["choices"][0]["message"]["content"]
+            elif "error" in result:
+                reply = f"OpenAI error: {result['error'].get('message', 'Неизвестная ошибка')}"
+            else:
+                reply = f"Непредвиденный ответ: {result}"
 
     except Exception as e:
-        reply = f"Ошибка получения ответа от GPT: {str(e)}"
+        reply = f"Ошибка обращения к GPT: {str(e)}"
 
     return {
         "response": {
